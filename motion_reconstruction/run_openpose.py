@@ -19,16 +19,17 @@ import tensorflow as tf
 
 from src.util.renderer import draw_openpose_skeleton
 
-kVidDir = '/home/kanazawa/projects/hmr_sfv/demo_data/videos'
-kOutDir = '/home/kanazawa/projects/hmr_sfv/demo_data/openpose_output'
+kVidDir = '/home/abardes/SFV/videos'
+kOutDir = '/home/abardes/SFV/videos/results'
 
-kOpenPose = '/scratch1/storage/git_repos/openpose'
-kOpenPoseModel = '/scratch1/storage/git_repos/Realtime_Multi-Person_Pose_Estimation/aj_finetuned_models_170k/'
+kOpenPose = '/home/abardes/SFV/openpose'
+kOpenPoseModel = '/home/abardes/SFV/motion_reconstruction/aj_finetuned_models_170k/'
 
 tf.app.flags.DEFINE_string('video_dir', kVidDir, 'dir of vids')
 tf.app.flags.DEFINE_string('out_dir', kOutDir, 'dir of output')
 tf.app.flags.DEFINE_string('openpose_dir', kOpenPose, 'dir of openpose')
-tf.app.flags.DEFINE_string('op_model_dir', kOpenPoseModel, 'dir of openpose model')
+tf.app.flags.DEFINE_string(
+    'op_model_dir', kOpenPoseModel, 'dir of openpose model')
 
 # Threshold for visible points
 VIS_THR = 0.1
@@ -41,7 +42,7 @@ IOU_THR = 0.05
 # If person hasn't appeared for this many frames, drop it.
 OCCL_THR = 30
 # Bbox traj must be longer than 50% of duration (duration -> max length any body was seen)
-FREQ_THR = .1 #.3
+FREQ_THR = .1  # .3
 # If median bbox area is less than this% of image area, kill it.
 SIZE_THR = .23
 # If avg score of the trajectory is < than this, kill it.
@@ -76,12 +77,12 @@ def main(unused_argv):
     # cmd_base = '%s/build/examples/openpose/openpose.bin --video %%s --write_keypoint_json %%s --no_display --render_pose 1' % (
     #     openpose_dir)
     # Maximum accuracy configuration:
-    cmd_base = '%s/build/examples/openpose/openpose.bin --video %%s --write_keypoint_json %%s --net_resolution "1312x736" --scale_number 4 --scale_gap 0.25 --write_images %%s --write_images_format jpg' % (
+    cmd_base = '%s/build/examples/openpose/openpose.bin --display 0 --model_pose COCO --video %%s --write_json %%s --scale_number 1 --write_images %%s --write_images_format jpg' % (
         openpose_dir)
 
-    cmd_base += ' --model_folder %s' % FLAGS.op_model_dir    
+    cmd_base += ' --model_folder %s' % FLAGS.op_model_dir
 
-    cmd_extra = ' --net_resolution "1312x736" --scale_number 4 --scale_gap 0.25'
+    cmd_extra = ' --net_resolution "1312x736" --scale_number 1 --scale_gap 0.25'
 
     for i, vid_path in enumerate(vid_paths[::-1]):
         vid_name = basename(vid_path)[:-4]
@@ -260,7 +261,8 @@ def clean_detections(all_kps, vid_path, vis=False):
             print('Rejecting %d bc not confident: %.2f' % (p_id, med_score))
             del persons[p_id]
             continue
-        print('%d survived with: freq %.2f, score %.2f, size %.2f' % (p_id, freq, med_score, median_bbox_area))
+        print('%d survived with: freq %.2f, score %.2f, size %.2f' %
+              (p_id, freq, med_score, median_bbox_area))
     print('Total # of ppl trajectories: %d' % len(persons.keys()))
     if len(persons.keys()) == 0:
         return {}
@@ -276,7 +278,7 @@ def clean_detections(all_kps, vid_path, vis=False):
             else:
                 per_frame[time] = [(p_id, bbox, kp_here)]
     # Now show.
-    if vis:#True:
+    if vis:  # True:
         if not vis:
             frames = read_frames(vid_path)
         for i, frame in enumerate(frames):
@@ -305,7 +307,6 @@ def clean_detections(all_kps, vid_path, vis=False):
                     ax.add_patch(rect)
                     plt.text(bbox[4], bbox[5], 'pid: %d' % p_id)
             plt.pause(1e-3)
-
 
     return per_frame_smooth
 
@@ -338,12 +339,15 @@ def smooth_detections(persons):
         bbox_params = bboxes_filled[:, :3]
         bbox_scores = bboxes_filled[:, 3]
         # Filter the first 3 parameters (cx, cy, s)
-        smoothed = np.array([signal.medfilt(param, 11) for param in bbox_params.T]).T
+        smoothed = np.array([signal.medfilt(param, 11)
+                             for param in bbox_params.T]).T
         from scipy.ndimage.filters import gaussian_filter1d
-        smoothed2 = np.array([gaussian_filter1d(traj, 3) for traj in smoothed.T]).T
+        smoothed2 = np.array([gaussian_filter1d(traj, 3)
+                              for traj in smoothed.T]).T
 
         # Convert the smoothed parameters into bboxes.
-        smoothed_bboxes = np.vstack([params_to_bboxes(cx, cy, sc) for (cx, cy, sc) in smoothed2])
+        smoothed_bboxes = np.vstack(
+            [params_to_bboxes(cx, cy, sc) for (cx, cy, sc) in smoothed2])
         # Cut back the boxes until confidence is high.
         last_ind = len(bbox_scores) - 1
         while bbox_scores[last_ind] < END_BOX_CONF:
@@ -351,7 +355,8 @@ def smooth_detections(persons):
                 break
             last_ind -= 1
         # Make it into 8 dim (cx, cy, sc, score, x, y, h, w) again,,
-        final_bboxes = np.hstack([smoothed2[:last_ind], bbox_scores.reshape(-1, 1)[:last_ind], smoothed_bboxes[:last_ind]])
+        final_bboxes = np.hstack(
+            [smoothed2[:last_ind], bbox_scores.reshape(-1, 1)[:last_ind], smoothed_bboxes[:last_ind]])
         final_kps = kps_filled[:last_ind]
 
         # import matplotlib.pyplot as plt
@@ -410,11 +415,10 @@ def fill_in_bboxes(bboxes, start_frame, end_frame):
             # but make sure that kp score is all 0
             fill_this[1][:, 2] = 0.
             bboxes_filled.append(fill_this)
-                        
 
     return bboxes_filled
-                
-        
+
+
 def get_rect(bbox0, linestyle='solid', ecolor='red'):
     """
     for drawing..
@@ -466,6 +470,7 @@ def read_json(json_path):
         kps.append(kp)
     return kps
 
+
 def nonmaxsupp(bboxes0, valid_kps0):
     """
     bboxes are (cx, cy, scale, score, x, y, h, w)
@@ -482,7 +487,7 @@ def nonmaxsupp(bboxes0, valid_kps0):
     x2 = x1 + bboxes[:, 2] - 1
     y2 = x2 + bboxes[:, 3] - 1
     area = bboxes[:, 2] * bboxes[:, 3]
-    
+
     # Small first,,
     idxs = np.argsort(scores)
 
@@ -499,14 +504,15 @@ def nonmaxsupp(bboxes0, valid_kps0):
         w = np.maximum(0, xx2 - xx1 + 1)
         h = np.maximum(0, yy2 - yy1 + 1)
         # compute the ratio of overlap
-	overlap = (w * h) / area[idxs[:last]]
+        overlap = (w * h) / area[idxs[:last]]
 
         # delete all indexes from the index list that have
-	idxs = np.delete(idxs, np.concatenate(([last],
-			                       np.where(overlap > NMS_THR)[0])))
+        idxs = np.delete(idxs, np.concatenate(([last],
+                                               np.where(overlap > NMS_THR)[0])))
 
     return bboxes0[pick], valid_kps0[pick]
-                
+
+
 def get_bbox(kp):
     vis = kp[:, 2] > VIS_THR
     if np.sum(vis) < NUM_VIS_THR:
@@ -517,7 +523,8 @@ def get_bbox(kp):
     person_height = np.linalg.norm(max_pt - min_pt)
     if person_height == 0:
         print('bad!')
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
     center = (min_pt + max_pt) / 2.
     scale = 150. / person_height
 
