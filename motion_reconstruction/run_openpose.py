@@ -22,7 +22,7 @@ from src.util.renderer import draw_openpose_skeleton
 kVidDir = '/home/abardes/SFV/videos'
 kOutDir = '/home/abardes/SFV/videos/results'
 
-kOpenPose = '/scratch1/storage/git_repos/openpose'
+kOpenPose = '/home/abardes/SFV/openpose'
 kOpenPoseModel = '/home/abardes/SFV/motion_reconstruction/aj_finetuned_models_170k/'
 
 tf.app.flags.DEFINE_string('video_dir', kVidDir, 'dir of vids')
@@ -77,12 +77,12 @@ def main(unused_argv):
     # cmd_base = '%s/build/examples/openpose/openpose.bin --video %%s --write_keypoint_json %%s --no_display --render_pose 1' % (
     #     openpose_dir)
     # Maximum accuracy configuration:
-    cmd_base = '%s/build/examples/openpose/openpose.bin --video %%s --write_keypoint_json %%s --net_resolution "1312x736" --scale_number 4 --scale_gap 0.25 --write_images %%s --write_images_format jpg' % (
+    cmd_base = '%s/build/examples/openpose/openpose.bin --display 0 --model_pose COCO --video %%s --write_json %%s --scale_number 1 --write_images %%s --write_images_format jpg' % (
         openpose_dir)
 
     cmd_base += ' --model_folder %s' % FLAGS.op_model_dir
 
-    cmd_extra = ' --net_resolution "1312x736" --scale_number 4 --scale_gap 0.25'
+    cmd_extra = ' --net_resolution "1312x736" --scale_number 1 --scale_gap 0.25'
 
     for i, vid_path in enumerate(vid_paths[::-1]):
         vid_name = basename(vid_path)[:-4]
